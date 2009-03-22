@@ -1,6 +1,7 @@
 """Static file generator for Django."""
 import os
 from django.http import HttpRequest
+from django.core.cache import cache
 from django.core.handlers.base import BaseHandler
 from django.db.models.base import ModelBase
 from django.db.models.manager import Manager
@@ -18,12 +19,9 @@ class DummyHandler(BaseHandler):
         for middleware_method in self._response_middleware:
             response = middleware_method(request, response)
             
-        return response    
+        return response
 
-class StaticGeneratorException(Exception):
-    pass
-
-class StaticGenerator(object):
+class StaticGeneratorMem(object):
     """
     The StaticGenerator class is created for Django applications, like a blog,
     that are not updated per request.
@@ -50,10 +48,6 @@ class StaticGenerator(object):
     def __init__(self, *resources):
         self.resources = self.extract_resources(resources)
         self.server_name = self.get_server_name()
-        try:
-            self.web_root = getattr(settings, 'WEB_ROOT')
-        except AttributeError:
-            raise StaticGeneratorException('You must specify WEB_ROOT in settings.py')
         
     def extract_resources(self, resources):
         """Takes a list of resources, and gets paths by type"""
@@ -97,6 +91,9 @@ class StaticGenerator(object):
             print '*** Warning ***: Using "localhost" for domain name. Use django.contrib.sites or set settings.SERVER_NAME to disable this warning.'
             return 'localhost'
     
+    def get_key(self, path='/'):
+        return '%s%s' % (self.server_name,path)
+    
     def get_content_from_path(self, path):
         """
         Imitates a basic http request using DummyHandler to retrieve
@@ -110,58 +107,22 @@ class StaticGenerator(object):
         
         handler = DummyHandler()
         response = handler(request)
-        
+
         return response.content
-        
-    def get_filename_from_path(self, path):
-        """
-        Returns (filename, directory)
-        Creates index.html for path if necessary
-        """
-        if path.endswith('/'):
-            path = '%sindex.html' % path
-            
-        fn = os.path.join(self.web_root, path.lstrip('/')).encode('utf-8')
-        return fn, os.path.dirname(fn)
         
     def publish_from_path(self, path, content=None):
         """
-        Gets filename and content for a path, attempts to create directory if 
-        necessary, writes to file.
-        
+        Get content if not passed. Cache entry.
         """
-        fn, directory = self.get_filename_from_path(path)
         if not content:
             content = self.get_content_from_path(path)
         
-        if not os.path.exists(directory):
-            try:
-                os.makedirs(directory)
-            except:
-                raise StaticGeneratorException('Could not create the directory: %s' % directory)
-        
-        try:
-            f = open(fn, 'w')
-            f.write(content)
-            f.close()
-        except:
-            raise StaticGeneratorException('Could not create the file: %s' % fn)
+        #30 days in seconds, memcache max expire
+        cache.set(self.get_key(path),content, 2592000)
             
     def delete_from_path(self, path):
-        """Deletes file, attempts to delete directory"""
-        fn, directory = self.get_filename_from_path(path)
-        try:
-            if os.path.exists(fn):
-                os.remove(fn)
-        except:
-            raise StaticGeneratorException('Could not delete file: %s' % fn)
-            
-        try:
-            os.rmdir(directory)
-        except OSError:
-            # Will fail if a directory is not empty, in which case we don't 
-            # want to delete it anyway
-            pass            
+        """Deletes cached entry"""
+        cache.delete(self.get_key(path))
             
     def do_all(self, func):
         return [func(path) for path in self.resources]
