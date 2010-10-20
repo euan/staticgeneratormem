@@ -8,5 +8,6 @@ setup(name='staticgeneratormem',
       author="Andreas Cederstrom",
       author_email="andreas youknowwhathere klydd.se",
       url="http://github.com/andriijas/staticgeneratormem/",
-      packages = ['staticgeneratormem']
+      packages = ['staticgeneratormem'],
+      install_requires = ['staticgenerator'],
       )
