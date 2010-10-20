@@ -1,6 +1,6 @@
 import re
 from django.conf import settings
-from staticgeneratormem import StaticGeneratorMem
+from staticgenerator import StaticGenerator
 
 class StaticGeneratorMiddleware(object):
     """

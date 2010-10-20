@@ -1,6 +1,6 @@
 from distutils.core import setup
 
-version = 'euan.1.0'
+version = 'euan.1.1'
 
 setup(name='staticgeneratormem',
       version=version,
